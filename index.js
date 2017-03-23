@@ -66,13 +66,13 @@ function find(substring){
 }
 
 function sortBy(obj){
-    // return _.sort(obj, [function(o){
-    //     return o[sort];
-    // }]);
-    return _.sortBy(obj, sort);
-    // return obj.sort(function (a, b) {
-    //     return a[sort] > b[sort];
-    // });
+    if(sort == 'drunk'){
+        return _.sortBy(obj, function(o){
+            return (o['volume'] * o['perc'] / 100) / o['price'];
+        })
+    } else {
+        return _.sortBy(obj, sort);
+    }
 }
 /*Print*/
 
@@ -99,9 +99,9 @@ function print(obj){
                 var cellSize;
                 switch (j){
                     case 'name':     cellSize = 40; break;
-                    case 'volume':   cellSize = 12; break;
-                    case 'perc':     cellSize = 14; break;
-                    case 'price':    cellSize = 14; break;
+                    case 'volume':   cellSize = 12; obj[i][j] += ' ml'; break;
+                    case 'perc':     cellSize = 14; obj[i][j] += ' %'; break;
+                    case 'price':    cellSize = 14; obj[i][j] += ' kr.'; break;
                     case 'country':  cellSize = 24; break;
                     case 'category': cellSize = 24; break;
                 }
@@ -170,6 +170,9 @@ function fetch(){
                         tablesAsJson[i][j] = rename(obj, changeKeys);
                         tablesAsJson[i][j].country = currCountry;
                         tablesAsJson[i][j].category = currCategory;
+                        tablesAsJson[i][j].price = Number(tablesAsJson[i][j].price.slice(0, -4).replace('.', ''));
+                        tablesAsJson[i][j].perc = Number(tablesAsJson[i][j].perc.slice(0, -1));
+                        tablesAsJson[i][j].volume = Number(tablesAsJson[i][j].volume.slice(0, -2));
                     }
                 }
             }
