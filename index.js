@@ -1,77 +1,94 @@
-var chalk = require('chalk');
+//Packages
+var _               = require('lodash');
+var rename          = require('rename-keys');
+var tabletojson     = require('tabletojson');
+var Promise         = require('promise');
+var chalk           = require('chalk');
 
-// Load the full build.
-var _ = require('lodash');
-var rename = require('rename-keys');
-var tabletojson = require('tabletojson');
-var Promise = require('promise');
+// Url to fetch vinbudin
 var url = 'http://www.vinbudin.is/heim/vorur/tabid-2311.aspx';
+var cats = [{isl: 'Rauðvín',                      en: 'red'},
+            {isl: 'Hvítvín',                      en: 'white'},
+            {isl: 'Bjór',                         en: 'beer'},
+            {isl: 'Sterkt',                       en: 'strong'},
+            {isl: 'Annað',                        en: 'other'},
+            {isl: 'Eftirréttavín o.fl.',          en: 'deser'},
+            {isl: 'Síder og gosblöndur',          en: 'cider'},
+            {isl: 'Umbúðir og aðrar söluvörur',   en: ''}]
 
-var categories = ['Rauðvín', 'Hvítvín', 'Bjór', 'Sterkt', 'Annað', 'Eftirréttavín o.fl.', 'Síder og gosblöndur', 'Umbúðir og aðrar söluvörur'];
+//Command constructor
+var construct = {
+    command: '',
+    string: '',
+    sort: '',
+    help: false
+}
+
+//Temps
 var res;
 
-var sort = '';
-
 init();
-
+//Initiates the CLI
 function init(){
-    var args = process.argv.slice(2);
-    if(args[0] === '-h' || args[0] === '--help'){
+    readArgs();
+    if(construct.help){
         printHelp();
         return;
     }
-    fetch()
-        .then(result => {
-            res = result[0];
-            main();
-        });
+    fetch().then(result => {
+        res = result[0];
+        processData();
+    });
 }
 
-function main(){
+//Reads in cli arguments
+function readArgs(){
     var args = process.argv.slice(2);
-    //sorting
-    if(args.length > 2){
-        if(args[2][0] === '-'){
-            sort = args[2].slice(1);
+    if(!args.length){ console.log('type: alkinn --help') };
+    for(i in args){
+        if(args[i] == 'get' || args[i] == 'find'){
+            construct.command = args[i];
+        } else if(args[i] == '-h' || args[i] == '--help'){
+            construct.help = true;
+        } else if(args[i][0] == '-'){
+            construct.sort = args[i].slice(1);
+        } else if(construct.command) {
+            construct.string ? construct.string += ' ' + args[i]: construct.string += args[i];
         }
-    }
-
-    if(args[0] === 'get'){
-        if(args[1] === 'red'){
-            get('Rauðvín')
-        } else if(args[1] === 'white'){
-            get('Hvítvín');
-        } else if(args[1] === 'beer'){
-            get('Bjór');
-        } else if(args[1] === 'strong'){
-            get('Sterkt');
-        } else if(args[1] === 'Ciders'){
-            get('Síder og gosblöndur');
-        } else if(args[1] === 'Desert'){
-            get('Eftirréttavín o.fl.');
-        }
-    } else if(args[0] === 'find'){
-        find(args[1]);
     }
 }
 
-function find(substring){
+function processData(){
+    var data = [];
+    if(construct.command === 'get'){
+        data = get(_.find(cats, {'en': construct.string}).isl)
+    } else if(construct.command === 'find'){
+        data = find(construct.string);
+    }
+    if(construct.sort){
+        data = sortBy(data);
+    }
+    print(data);
+
+}
+
+function find(string){
     var contains = [];
     for(i in res){
-        if(res[i]['name'].toLowerCase().includes(substring.toLowerCase())){
+        if(res[i]['name'].toLowerCase().includes(string.toLowerCase())){
             contains.push(res[i]);
         }
     }
-    print(contains);
+    return contains;
 }
 
 function sortBy(obj){
-    if(sort == 'drunk'){
+    if(construct.sort == 'drunk'){
         return _.sortBy(obj, function(o){
             return (o['volume'] * o['perc'] / 100) / o['price'];
         })
     } else {
-        return _.sortBy(obj, sort);
+        return _.sortBy(obj, construct.sort);
     }
 }
 /*Print*/
@@ -82,45 +99,43 @@ function sortBy(obj){
 
 */
 function print(obj){
-    console.log('printing');
-    if(sort){
-        obj = sortBy(obj);
-    }
-    console.log(`
-                                                                 ┌───────────────┐
+    console.log(`                                                                 ┌───────────────┐
     ┌────────────────────────────────────────┬────────────┬──────┤    ALKINN     ├──────┬────────────────────────┬────────────────────────┐
     │                   Name                 │   Vol      |   %  └───────┬───────┘  ISK │         Country        │        Category        │
     ├────────────────────────────────────────┼────────────┼──────────────┼──────────────┼────────────────────────┼────────────────────────┤`);
     for(i in obj){
-        var str = '';
-        str += '    ';
-        for(j in obj[i]){
-            if(validInfo(j)){
-                var cellSize;
-                switch (j){
-                    case 'name':     cellSize = 40; break;
-                    case 'volume':   cellSize = 12; obj[i][j] += ' ml'; break;
-                    case 'perc':     cellSize = 14; obj[i][j] += ' %'; break;
-                    case 'price':    cellSize = 14; obj[i][j] += ' kr.'; break;
-                    case 'country':  cellSize = 24; break;
-                    case 'category': cellSize = 24; break;
-                }
-                if(obj[i][j].length > 30){
-                    obj[i][j] = obj[i][j].substr(0, 30) + '...';
-                }
-                var offset = _.repeat(' ', ((cellSize - obj[i][j].length)/2));
-                if(obj[i][j].length % 2 == 0){
-                    str += '|' + offset + obj[i][j] + offset;
-                } else {
-                    str += '|' + offset + obj[i][j] + offset + ' ';
+        if(obj[i].category != 'Annað' &&  obj[i].category != 'Umbúðir og aðrar söluvörur'){
+            var str = '';
+            str += '    ';
+            for(j in obj[i]){
+                if(validInfo(j)){
+                    var cellSize;
+                    switch (j){
+                        case 'name':     cellSize = 40; break;
+                        case 'volume':   cellSize = 12; obj[i][j] += ' ml'; break;
+                        case 'perc':     cellSize = 14; obj[i][j] += ' %'; break;
+                        case 'price':    cellSize = 14; obj[i][j] += ' kr.'; break;
+                        case 'country':  cellSize = 24; break;
+                        case 'category': cellSize = 24; break;
+                    }
+                    if(obj[i][j].length > 30){
+                        obj[i][j] = obj[i][j].substr(0, 30) + '...';
+                    }
+                    var offset = _.repeat(' ', ((cellSize - obj[i][j].length)/2));
+                    if(obj[i][j].length % 2 == 0){
+                        str += '|' + offset + obj[i][j] + offset;
+                    } else {
+                        str += '|' + offset + obj[i][j] + offset + ' ';
+                    }
                 }
             }
+            str += '|';
+            console.log(str);
+            str = '';
         }
-        str += '|';
-        console.log(str);
-        str = '';
     }
-    console.log('    └────────────────────────────────────────┴────────────┴──────────────┴──────────────┴────────────────────────┴────────────────────────┘')
+    console.log('    └────────────────────────────────────────┴────────────┴──────────────┴──────────────┴────────────────────────┴────────────────────────┘');
+    console.log('');
 }
 
 function validInfo(j){
@@ -132,7 +147,7 @@ function printHelp(){
     usage += '\n'
     usage += `\n${chalk.bold('command:')}      GET <type>, FIND <searchstring>`
     usage += `\n${chalk.bold('string:')}       type or searchstring`
-    usage += `\n${chalk.bold('-sortby:')}      name, volume, percentage, price, country, category or drunk`
+    usage += `\n${chalk.bold('-sortby:')}      name, volume, perc, price, country, category or drunk`
     usage += `\n${chalk.bold('-h | --help:')}  Show these instructions`
     usage += '\n\n'
     usage += chalk.italic('Other available commands')
@@ -141,11 +156,13 @@ function printHelp(){
     console.log(usage);
 }
 
-
-
 /*Returns beers*/
 function get(type){
-    print(_.filter(res, {category: type}));
+    if(type){
+        return _.filter(res, {category: type});
+    } else {
+        return res;
+    }
 }
 
 /*fetches alka info*/
@@ -170,6 +187,7 @@ function fetch(){
                         tablesAsJson[i][j] = rename(obj, changeKeys);
                         tablesAsJson[i][j].country = currCountry;
                         tablesAsJson[i][j].category = currCategory;
+
                         tablesAsJson[i][j].price = Number(tablesAsJson[i][j].price.slice(0, -4).replace('.', ''));
                         tablesAsJson[i][j].perc = Number(tablesAsJson[i][j].perc.slice(0, -1));
                         tablesAsJson[i][j].volume = Number(tablesAsJson[i][j].volume.slice(0, -2));
@@ -205,5 +223,5 @@ var changeKeys = function(str){
 };
 
 var isCategory = function(str){
-    return _.includes(categories, str);
+    return _.includes(_.map(cats, 'isl'), str);
 }
