@@ -10,11 +10,13 @@ var url = 'http://www.vinbudin.is/heim/vorur/tabid-2311.aspx';
 var categories = ['Rauðvín', 'Hvítvín', 'Bjór', 'Sterkt', 'Annað', 'Eftirréttavín o.fl.', 'Síder og gosblöndur', 'Umbúðir og aðrar söluvörur'];
 var res;
 
+var sort = '';
+
 init();
 
 function init(){
     var args = process.argv.slice(2);
-    if(args[0] === 'h' || args[0] === 'help'){
+    if(args[0] === '-h' || args[0] === '--help'){
         printHelp();
         return;
     }
@@ -27,6 +29,13 @@ function init(){
 
 function main(){
     var args = process.argv.slice(2);
+    //sorting
+    if(args.length > 2){
+        if(args[2][0] === '-'){
+            sort = args[2].slice(1);
+        }
+    }
+
     if(args[0] === 'get'){
         if(args[1] === 'red'){
             get('Rauðvín')
@@ -41,9 +50,30 @@ function main(){
         } else if(args[1] === 'Desert'){
             get('Eftirréttavín o.fl.');
         }
+    } else if(args[0] === 'find'){
+        find(args[1]);
     }
 }
 
+function find(substring){
+    var contains = [];
+    for(i in res){
+        if(res[i]['name'].toLowerCase().includes(substring.toLowerCase())){
+            contains.push(res[i]);
+        }
+    }
+    print(contains);
+}
+
+function sortBy(obj){
+    // return _.sort(obj, [function(o){
+    //     return o[sort];
+    // }]);
+    return _.sortBy(obj, sort);
+    // return obj.sort(function (a, b) {
+    //     return a[sort] > b[sort];
+    // });
+}
 /*Print*/
 
 /*
@@ -52,6 +82,10 @@ function main(){
 
 */
 function print(obj){
+    console.log('printing');
+    if(sort){
+        obj = sortBy(obj);
+    }
     console.log(`
                                                                  ┌───────────────┐
     ┌────────────────────────────────────────┬────────────┬──────┤    ALKINN     ├──────┬────────────────────────┬────────────────────────┐
@@ -93,12 +127,12 @@ function validInfo(j){
     return (j === 'name') || (j === 'country') || (j === 'volume') || (j === 'perc') || (j === 'price') || (j === 'category');
 }
 
-
 function printHelp(){
-    let usage = 'usage: alkinn <command> <string> [-h | --help]'
+    let usage = 'usage: alkinn <command> <string> [-sortby] [-h | --help]'
     usage += '\n'
-    usage += `\n${chalk.bold('command:')}      A command,\tsee ${chalk.bold('alkinn commands')}`
-    usage += `\n${chalk.bold('string:')}       A string, \tsee ${chalk.bold('alkinn commands')}`
+    usage += `\n${chalk.bold('command:')}      GET <type>, FIND <searchstring>`
+    usage += `\n${chalk.bold('string:')}       type or searchstring`
+    usage += `\n${chalk.bold('-sortby:')}      name, volume, percentage, price, country, category or drunk`
     usage += `\n${chalk.bold('-h | --help:')}  Show these instructions`
     usage += '\n\n'
     usage += chalk.italic('Other available commands')
