@@ -30,6 +30,7 @@ var res;
 init();
 //Initiates the CLI
 function init(){
+    iceland();
     readArgs();
     if(construct.help){
         printHelp();
