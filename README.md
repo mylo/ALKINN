@@ -9,13 +9,14 @@ npm install alkinn -g
 
 ## Usage
 ```
+usage: alkinn <command> <string | type> [-sortby] [-h | --help]
 
-alkinn <command> <string> [-sortby] [-h | --help]
-command:         GET <type>, FIND <searchstring>
-string:          type or searchstring.
--sortby:         name, volume, perc, price, country, category or drunk.
--h | --help:     Show these instructions.
+command:      get <type>, find <string>, open (opening hours)
+string:       Search parameter using find
+types:        beer, red, white, strong, cider, desert
+-sortby:      name, volume, perc, price, country, category or drunk
 
+-h | --help:  Show these instructions
 ```
 ## Example
 
