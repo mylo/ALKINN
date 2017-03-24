@@ -24,11 +24,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/arnarf14/ALKAHOLISTINN.git"
+    "url": "git+https://github.com/arnarf14/ALKINN.git"
   },
   "bugs": {
-    "url": "https://github.com/arnarf14/ALKAHOLISTINN/issues"
+    "url": "https://github.com/arnarf14/ALKINN/issues"
   },
-  "homepage": "https://github.com/arnarf14/ALKAHOLISTINN#readme",
+  "homepage": "https://github.com/arnarf14/ALKINN#readme",
   "description": ""
 }
