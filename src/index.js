@@ -4,9 +4,12 @@ var rename          = require('rename-keys');
 var tabletojson     = require('tabletojson');
 var Promise         = require('promise');
 var chalk           = require('chalk');
+var request = require('request');
+var cheerio = require('cheerio');
 
 // Url to fetch vinbudin
 var url = 'http://www.vinbudin.is/heim/vorur/tabid-2311.aspx';
+var openingHours = 'http://www.vinbudin.is/heim/opnunartimar.aspx';
 var cats = [{isl: 'Rauðvín',                      en: 'red'},
             {isl: 'Hvítvín',                      en: 'white'},
             {isl: 'Bjór',                         en: 'beer'},
@@ -15,6 +18,7 @@ var cats = [{isl: 'Rauðvín',                      en: 'red'},
             {isl: 'Eftirréttavín o.fl.',          en: 'deser'},
             {isl: 'Síder og gosblöndur',          en: 'cider'},
             {isl: 'Umbúðir og aðrar söluvörur',   en: ''}]
+
 
 //Command constructor
 var construct = {
@@ -26,6 +30,7 @@ var construct = {
 
 //Temps
 var res;
+var ope;
 
 init();
 //Initiates the CLI
@@ -36,9 +41,20 @@ function init(){
         printHelp();
         return;
     }
-    fetch().then(result => {
-        res = result[0];
+    fetchData().then(result => {
         processData();
+    });
+}
+
+function fetchData(){
+    return new Promise(function(resolve, reject){
+        fetch().then(result => {
+            res = result[0];
+        });
+        fetchOpeningHours().then(result => {
+            ope = result;
+        });
+        resolve(true);
     });
 }
 
@@ -49,6 +65,9 @@ function readArgs(){
     for(i in args){
         if(args[i] == 'get' || args[i] == 'find'){
             construct.command = args[i];
+        } else if(args[i] == 'open'){
+            construct.command = args[i];
+            console.log(construct.command);
         } else if(args[i] == '-h' || args[i] == '--help'){
             construct.help = true;
         } else if(args[i][0] == '-'){
@@ -61,10 +80,13 @@ function readArgs(){
 
 function processData(){
     var data = [];
+    console.log("PROCSSING");
     if(construct.command === 'get'){
         data = get(_.find(cats, {'en': construct.string}).isl)
     } else if(construct.command === 'find'){
         data = find(construct.string);
+    } else if(construct.command === 'open'){
+        console.log("OPENING HOURS");
     }
     if(construct.sort){
         data = sortBy(data);
@@ -100,7 +122,7 @@ function sortBy(obj){
 
 */
 function print(obj){
-    console.log(`                                                                 ┌───────────────┐
+    console.log(`                                                ┌───────────────┐
     ┌────────────────────────────────────────┬────────────┬──────┤    ALKINN     ├──────┬────────────────────────┬────────────────────────┐
     │                   Name                 │   Vol      |   %  └───────┬───────┘  ISK │         Country        │        Category        │
     ├────────────────────────────────────────┼────────────┼──────────────┼──────────────┼────────────────────────┼────────────────────────┤`);
@@ -199,6 +221,37 @@ function fetch(){
                 resolve(tablesAsJson);
             } else {
                 reject(tablesAsJson)
+            }
+        });
+    })
+}
+
+function fetchOpeningHours(){
+    return new Promise(function(resolve, reject){
+        var openingHoursArr = [];
+        request(openingHours, function (error, response, html) {
+            if (!error && response.statusCode == 200) {
+                var $ = cheerio.load(html);
+                $('.info').each(function(i, element){
+                    //console.log($(element).text());
+                    var title = $(element).find('.title').text();
+                    var address = $(element).find('.address').text();
+                    var openingHours = $(element).find('.openinghours').text().trim();
+                    var openHour = openingHours.substring(openingHours.lastIndexOf('-') - 3, openingHours.lastIndexOf('-'));
+                    var closeHour = openingHours.substring(openingHours.lastIndexOf('-') + 2, openingHours.lastIndexOf('-') + 4);
+                    var store = {
+                        'title': title,
+                        'address': address,
+                        'openHour': openHour,
+                        'closeHour': closeHour
+                    };
+                    openingHoursArr.push(store);
+                });
+                if(openingHoursArr){
+                    resolve(openingHoursArr);
+                } else {
+                    reject(openingHoursArr);
+                }
             }
         });
     })
