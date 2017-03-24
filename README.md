@@ -28,6 +28,10 @@ types:        beer, red, white, strong, cider, desert
   alkinn get beer -name
 ```
 
+```bash
+  alkinn open
+```
+
 ## License
 
 [MIT](http://vjpr.mit-license.org)
