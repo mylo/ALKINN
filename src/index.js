@@ -12,7 +12,7 @@ var cats = [{isl: 'Rauðvín',                      en: 'red'},
             {isl: 'Bjór',                         en: 'beer'},
             {isl: 'Sterkt',                       en: 'strong'},
             {isl: 'Annað',                        en: 'other'},
-            {isl: 'Eftirréttavín o.fl.',          en: 'deser'},
+            {isl: 'Eftirréttavín o.fl.',          en: 'desert'},
             {isl: 'Síder og gosblöndur',          en: 'cider'},
             {isl: 'Umbúðir og aðrar söluvörur',   en: ''}]
 
