@@ -35,26 +35,22 @@ var ope;
 init();
 //Initiates the CLI
 function init(){
-    iceland();
     readArgs();
     if(construct.help){
         printHelp();
         return;
     }
-    fetchData().then(result => {
-        processData();
-    });
-}
 
-function fetchData(){
-    return new Promise(function(resolve, reject){
-        fetch().then(result => {
-            res = result[0];
-        });
-        fetchOpeningHours().then(result => {
-            ope = result;
-        });
-        resolve(true);
+    /*
+    fetchProducts().then((data) => {
+        console.log(ope.length)
+        processData();
+    })
+    */
+    /*Fetch all datas*/
+
+    Promise.all([fetchProducts(), fetchOpeningHours()]).then((data) => {
+        processData();
     });
 }
 
@@ -67,7 +63,6 @@ function readArgs(){
             construct.command = args[i];
         } else if(args[i] == 'open'){
             construct.command = args[i];
-            console.log(construct.command);
         } else if(args[i] == '-h' || args[i] == '--help'){
             construct.help = true;
         } else if(args[i][0] == '-'){
@@ -80,19 +75,19 @@ function readArgs(){
 
 function processData(){
     var data = [];
-    console.log("PROCSSING");
     if(construct.command === 'get'){
         data = get(_.find(cats, {'en': construct.string}).isl)
     } else if(construct.command === 'find'){
         data = find(construct.string);
     } else if(construct.command === 'open'){
-        console.log("OPENING HOURS");
+        iceland();
+        printOpeningHours();
+        return;
     }
     if(construct.sort){
         data = sortBy(data);
     }
     print(data);
-
 }
 
 function find(string){
@@ -122,11 +117,11 @@ function sortBy(obj){
 
 */
 function print(obj){
-    console.log(`                                                ┌───────────────┐
+    console.log(`                                                                 ┌───────────────┐
     ┌────────────────────────────────────────┬────────────┬──────┤    ALKINN     ├──────┬────────────────────────┬────────────────────────┐
     │                   Name                 │   Vol      |   %  └───────┬───────┘  ISK │         Country        │        Category        │
     ├────────────────────────────────────────┼────────────┼──────────────┼──────────────┼────────────────────────┼────────────────────────┤`);
-    for(i in obj){
+    for(i in obj){true
         if(obj[i].category != 'Annað' &&  obj[i].category != 'Umbúðir og aðrar söluvörur'){
             var str = '';
             str += '    ';
@@ -188,9 +183,8 @@ function get(type){
     }
 }
 
-/*fetches alka info*/
-function fetch(){
-    return new Promise(function(resolve, reject){
+function fetchProducts(){
+    return new Promise((resolve, reject) => {
         tabletojson.convertUrl(url)
         .then(function(tablesAsJson) {
             for(i in tablesAsJson){
@@ -217,17 +211,20 @@ function fetch(){
                     }
                 }
             }
+
             if(tablesAsJson){
-                resolve(tablesAsJson);
+                res = tablesAsJson[0];
+                resolve(true);
             } else {
-                reject(tablesAsJson)
+                reject(false);
             }
         });
-    })
+    });
 }
 
+
 function fetchOpeningHours(){
-    return new Promise(function(resolve, reject){
+    return new Promise((resolve, reject) => {
         var openingHoursArr = [];
         request(openingHours, function (error, response, html) {
             if (!error && response.statusCode == 200) {
@@ -247,15 +244,18 @@ function fetchOpeningHours(){
                     };
                     openingHoursArr.push(store);
                 });
+
                 if(openingHoursArr){
-                    resolve(openingHoursArr);
+                    ope = openingHoursArr;
+                    resolve(true);
                 } else {
-                    reject(openingHoursArr);
+                    reject(false);
                 }
             }
         });
-    })
+    });
 }
+
 
 var changeKeys = function(str){
     switch(str) {
@@ -278,4 +278,106 @@ var changeKeys = function(str){
 
 var isCategory = function(str){
     return _.includes(_.map(cats, 'isl'), str);
+}
+
+
+/*
+var store = {
+    'title': title,
+    'address': address,
+    'openHour': openHour,
+    'closeHour': closeHour
+};
+*/
+
+/*
+    20        10    10          20
+    Title   Opens   Closes      Address
+*/
+
+function printOpeningHours(){
+    console.log(`                                                   ┌───────────────┐
+    ┌──────────────────────────┬───────────────────┤    ALKINN     ├──────────┬──────────┬──────────┐
+    │          Title           │   Address         └───────────────┘          │   Open   │  Close   │
+    ├──────────────────────────┼──────────────────────────────────────────────┼──────────┼──────────┤`);
+    for(i in ope){
+        var obj = ope[i];
+        var str = '';
+        var red = false;
+        str += '    ';
+        for(var j in obj){
+            if(obj[i]['closeHour'] < Date.now().getHours()){
+                red = true;
+            }
+            var cellSize;
+            switch (j) {
+                case 'title':     cellSize = 26; break;
+                case 'address':   cellSize = 46; break;
+                case 'openHour':  cellSize = 10; break;
+                case 'closeHour': cellSize = 10; break;
+            }
+            var offset = _.repeat(' ', ((cellSize - obj[j].length)/2));
+            if(obj[j].length % 2 == 0){
+                str += '|' + offset + obj[j] + offset;
+            } else {
+                str += '|' + offset + obj[j] + offset + ' ';
+            }
+        }
+        str += '|';
+        console.log(chalk.styles.red.open + str + chalk.styles.red.close);
+        str = '';
+    }
+    console.log('    └──────────────────────────┴──────────────────────────────────────────────┴──────────┴──────────┘');
+    console.log('');
+}
+
+
+function iceland(){
+    console.log(`
+                                                                    ;#'
+                +#@:@@\                                          \@@@@@|
+               .:@@@@@@                                           '@@@@@@     @@@|
+                .'\;@@@;                                          \@@@@@#    @#
+             ,.  #@@#@@@@'                                         @@@@@@+\+@@@
+            #@@@\ @@@@@@@@@                    \,;           @@\ '@@@@@@@@@@@@|
+          \@,@@@@,  +@@@@@@          \+.       @@@@ .@@@+   ,@@@@@@@@@@@@@@@@@\ #
+           @@@@@@@#@ @@@@@@@#.      ,@@@    +@@@@@@' @@@@@  @@@@@@@@@@@@@@@@@@@@@+
+          @''@@@@@@@@;@@@@@@@'      .@@@'  \@@@@@@@';'@@@@@@@@@@@@@@@@@@@@@@@@@@@+
+          +@@@@@@@@@@@@@@@@@@@,      @@@@;  @@@@@@@@@'@@@@@@@@@@@@@@@@@@@@@@@@@@#
+        @@\:@##@@@@@@@@@@@@@@@       +@@@@+ ,@@@@@@@@@\@@@@@@@@@@@@@@@@@@@@@@@@@,.#@
+        :@@@:@@@@@@@@@@@@@@@@+       .@@@@#''@@@@@@@@@+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@;
+     .@#'@@@#@@@@@@@@@@@@@@..     @\ :@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+    :@@@@@@@@@@@@+@++@@@@@@@@'  \@@.;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+        @@@@#;@   + ',@@@@@@@@  #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+         :,          .@||@@@@@..@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#
+                       ;@@@@@@'#+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'.
+                     #@@@@@@@@+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@,
+                   ,@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@;;
+                  \#'@@@@.@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#
+                 :: ||   '@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+.@@
+            .\@#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
+       +@@'@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+       ;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
+        @@+    \,'@;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
+                    #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+                   \@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@:#
+                    +@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+                     @@;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
+                       @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
+                       @@'+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
+                      ,:;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\;,@|
+                        #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@;
+                      \@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+                 @\   .@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+
+                :@#;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@,
+                .@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
+                ,@@@@@@@#@@@'+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+                               :@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#'|
+                                 :@@@@@@@@@@@@@@@@@@@@@@@@@:
+                                   @@@@@@@@@@@@@@@@@@@@@@@|
+                                    ;@@@@@@@@@@@@@@@@@@@@;
+                                      \.,;@@@@@@@@@@@@@@'
+                                            :@@@@@@@@;|
+                                                 ,|
+    `);
 }
