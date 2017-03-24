@@ -4,9 +4,12 @@ var rename          = require('rename-keys');
 var tabletojson     = require('tabletojson');
 var Promise         = require('promise');
 var chalk           = require('chalk');
+var request = require('request');
+var cheerio = require('cheerio');
 
 // Url to fetch vinbudin
 var url = 'http://www.vinbudin.is/heim/vorur/tabid-2311.aspx';
+var openingHours = 'http://www.vinbudin.is/heim/opnunartimar.aspx';
 var cats = [{isl: 'Rauðvín',                      en: 'red'},
             {isl: 'Hvítvín',                      en: 'white'},
             {isl: 'Bjór',                         en: 'beer'},
@@ -15,6 +18,7 @@ var cats = [{isl: 'Rauðvín',                      en: 'red'},
             {isl: 'Eftirréttavín o.fl.',          en: 'desert'},
             {isl: 'Síder og gosblöndur',          en: 'cider'},
             {isl: 'Umbúðir og aðrar söluvörur',   en: ''}]
+
 
 //Command constructor
 var construct = {
@@ -26,18 +30,26 @@ var construct = {
 
 //Temps
 var res;
+var ope;
 
 init();
 //Initiates the CLI
 function init(){
-    iceland();
     readArgs();
     if(construct.help){
         printHelp();
         return;
     }
-    fetch().then(result => {
-        res = result[0];
+
+    /*
+    fetchProducts().then((data) => {
+        console.log(ope.length)
+        processData();
+    })
+    */
+    /*Fetch all datas*/
+
+    Promise.all([fetchProducts(), fetchOpeningHours()]).then((data) => {
         processData();
     });
 }
@@ -48,6 +60,8 @@ function readArgs(){
     if(!args.length){ console.log('type: alkinn --help') };
     for(i in args){
         if(args[i] == 'get' || args[i] == 'find'){
+            construct.command = args[i];
+        } else if(args[i] == 'open'){
             construct.command = args[i];
         } else if(args[i] == '-h' || args[i] == '--help'){
             construct.help = true;
@@ -65,12 +79,15 @@ function processData(){
         data = get(_.find(cats, {'en': construct.string}).isl)
     } else if(construct.command === 'find'){
         data = find(construct.string);
+    } else if(construct.command === 'open'){
+        iceland();
+        printOpeningHours();
+        return;
     }
     if(construct.sort){
         data = sortBy(data);
     }
     print(data);
-
 }
 
 function find(string){
@@ -104,7 +121,7 @@ function print(obj){
     ┌────────────────────────────────────────┬────────────┬──────┤    ALKINN     ├──────┬────────────────────────┬────────────────────────┐
     │                   Name                 │   Vol      |   %  └───────┬───────┘  ISK │         Country        │        Category        │
     ├────────────────────────────────────────┼────────────┼──────────────┼──────────────┼────────────────────────┼────────────────────────┤`);
-    for(i in obj){
+    for(i in obj){true
         if(obj[i].category != 'Annað' &&  obj[i].category != 'Umbúðir og aðrar söluvörur'){
             var str = '';
             str += '    ';
@@ -166,9 +183,8 @@ function get(type){
     }
 }
 
-/*fetches alka info*/
-function fetch(){
-    return new Promise(function(resolve, reject){
+function fetchProducts(){
+    return new Promise((resolve, reject) => {
         tabletojson.convertUrl(url)
         .then(function(tablesAsJson) {
             for(i in tablesAsJson){
@@ -195,14 +211,51 @@ function fetch(){
                     }
                 }
             }
+
             if(tablesAsJson){
-                resolve(tablesAsJson);
+                res = tablesAsJson[0];
+                resolve(true);
             } else {
-                reject(tablesAsJson)
+                reject(false);
             }
         });
-    })
+    });
 }
+
+
+function fetchOpeningHours(){
+    return new Promise((resolve, reject) => {
+        var openingHoursArr = [];
+        request(openingHours, function (error, response, html) {
+            if (!error && response.statusCode == 200) {
+                var $ = cheerio.load(html);
+                $('.info').each(function(i, element){
+                    //console.log($(element).text());
+                    var title = $(element).find('.title').text();
+                    var address = $(element).find('.address').text();
+                    var openingHours = $(element).find('.openinghours').text().trim();
+                    var openHour = openingHours.substring(openingHours.lastIndexOf('-') - 3, openingHours.lastIndexOf('-'));
+                    var closeHour = openingHours.substring(openingHours.lastIndexOf('-') + 2, openingHours.lastIndexOf('-') + 4);
+                    var store = {
+                        'title': title,
+                        'address': address,
+                        'openHour': openHour,
+                        'closeHour': closeHour
+                    };
+                    openingHoursArr.push(store);
+                });
+
+                if(openingHoursArr){
+                    ope = openingHoursArr;
+                    resolve(true);
+                } else {
+                    reject(false);
+                }
+            }
+        });
+    });
+}
+
 
 var changeKeys = function(str){
     switch(str) {
@@ -225,4 +278,106 @@ var changeKeys = function(str){
 
 var isCategory = function(str){
     return _.includes(_.map(cats, 'isl'), str);
+}
+
+
+/*
+var store = {
+    'title': title,
+    'address': address,
+    'openHour': openHour,
+    'closeHour': closeHour
+};
+*/
+
+/*
+    20        10    10          20
+    Title   Opens   Closes      Address
+*/
+
+function printOpeningHours(){
+    console.log(`                                                   ┌───────────────┐
+    ┌──────────────────────────┬───────────────────┤    ALKINN     ├──────────┬──────────┬──────────┐
+    │          Title           │   Address         └───────────────┘          │   Open   │  Close   │
+    ├──────────────────────────┼──────────────────────────────────────────────┼──────────┼──────────┤`);
+    for(i in ope){
+        var obj = ope[i];
+        var str = '';
+        var red = false;
+        str += '    ';
+        for(var j in obj){
+            if(obj[i]['closeHour'] < Date.now().getHours()){
+                red = true;
+            }
+            var cellSize;
+            switch (j) {
+                case 'title':     cellSize = 26; break;
+                case 'address':   cellSize = 46; break;
+                case 'openHour':  cellSize = 10; break;
+                case 'closeHour': cellSize = 10; break;
+            }
+            var offset = _.repeat(' ', ((cellSize - obj[j].length)/2));
+            if(obj[j].length % 2 == 0){
+                str += '|' + offset + obj[j] + offset;
+            } else {
+                str += '|' + offset + obj[j] + offset + ' ';
+            }
+        }
+        str += '|';
+        console.log(chalk.styles.red.open + str + chalk.styles.red.close);
+        str = '';
+    }
+    console.log('    └──────────────────────────┴──────────────────────────────────────────────┴──────────┴──────────┘');
+    console.log('');
+}
+
+
+function iceland(){
+    console.log(`
+                                                                    ;#'
+                +#@:@@\                                          \@@@@@|
+               .:@@@@@@                                           '@@@@@@     @@@|
+                .'\;@@@;                                          \@@@@@#    @#
+             ,.  #@@#@@@@'                                         @@@@@@+\+@@@
+            #@@@\ @@@@@@@@@                    \,;           @@\ '@@@@@@@@@@@@|
+          \@,@@@@,  +@@@@@@          \+.       @@@@ .@@@+   ,@@@@@@@@@@@@@@@@@\ #
+           @@@@@@@#@ @@@@@@@#.      ,@@@    +@@@@@@' @@@@@  @@@@@@@@@@@@@@@@@@@@@+
+          @''@@@@@@@@;@@@@@@@'      .@@@'  \@@@@@@@';'@@@@@@@@@@@@@@@@@@@@@@@@@@@+
+          +@@@@@@@@@@@@@@@@@@@,      @@@@;  @@@@@@@@@'@@@@@@@@@@@@@@@@@@@@@@@@@@#
+        @@\:@##@@@@@@@@@@@@@@@       +@@@@+ ,@@@@@@@@@\@@@@@@@@@@@@@@@@@@@@@@@@@,.#@
+        :@@@:@@@@@@@@@@@@@@@@+       .@@@@#''@@@@@@@@@+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@;
+     .@#'@@@#@@@@@@@@@@@@@@..     @\ :@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+    :@@@@@@@@@@@@+@++@@@@@@@@'  \@@.;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+        @@@@#;@   + ',@@@@@@@@  #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+         :,          .@||@@@@@..@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#
+                       ;@@@@@@'#+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'.
+                     #@@@@@@@@+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@,
+                   ,@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@;;
+                  \#'@@@@.@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#
+                 :: ||   '@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+.@@
+            .\@#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
+       +@@'@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+       ;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
+        @@+    \,'@;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
+                    #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+                   \@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@:#
+                    +@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+                     @@;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
+                       @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
+                       @@'+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
+                      ,:;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\;,@|
+                        #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@;
+                      \@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+                 @\   .@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+
+                :@#;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@,
+                .@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
+                ,@@@@@@@#@@@'+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+                               :@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#'|
+                                 :@@@@@@@@@@@@@@@@@@@@@@@@@:
+                                   @@@@@@@@@@@@@@@@@@@@@@@|
+                                    ;@@@@@@@@@@@@@@@@@@@@;
+                                      \.,;@@@@@@@@@@@@@@'
+                                            :@@@@@@@@;|
+                                                 ,|
+    `);
 }
