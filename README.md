@@ -1,6 +1,4 @@
-# live-xxx
-
-> ${DESCRIPTION}
+# Alkinn-CLI
 A handy CLI for the thirsty!
 
 ## Install
