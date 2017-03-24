@@ -17,7 +17,7 @@ var cats = [{isl: 'Rauðvín',                      en: 'red'},
             {isl: 'Annað',                        en: 'other'},
             {isl: 'Eftirréttavín o.fl.',          en: 'desert'},
             {isl: 'Síder og gosblöndur',          en: 'cider'},
-            {isl: 'Umbúðir og aðrar söluvörur',   en: ''}]
+            {isl: 'Umbúðir og aðrar söluvörur',   en: 'umb'}]
 
 
 //Command constructor
@@ -25,7 +25,8 @@ var construct = {
     command: '',
     string: '',
     sort: '',
-    help: false
+    help: false,
+    open: false
 }
 
 //Temps
@@ -41,28 +42,27 @@ function init(){
         return;
     }
 
-    /*
-    fetchProducts().then((data) => {
-        console.log(ope.length)
-        processData();
-    })
-    */
-    /*Fetch all datas*/
+    if(construct.open){
+        Promise.all([fetchOpeningHours()]).then((data) => {
+            (data) ? processData() : console.log('Error contacting the liquor store.');
+        });
+    } else if(construct.command){
+        Promise.all([fetchProducts()]).then((data) => {
+            (data) ? processData() : console.log('Error contacting the liquor store.');
+        });
+    }
 
-    Promise.all([fetchProducts(), fetchOpeningHours()]).then((data) => {
-        processData();
-    });
 }
 
 //Reads in cli arguments
 function readArgs(){
     var args = process.argv.slice(2);
-    if(!args.length){ console.log('type: alkinn --help') };
     for(i in args){
         if(args[i] == 'get' || args[i] == 'find'){
             construct.command = args[i];
-        } else if(args[i] == 'open'){
+        } else if(args[i] == 'open') {
             construct.command = args[i];
+            construct.open = true;
         } else if(args[i] == '-h' || args[i] == '--help'){
             construct.help = true;
         } else if(args[i][0] == '-'){
@@ -71,23 +71,27 @@ function readArgs(){
             construct.string ? construct.string += ' ' + args[i]: construct.string += args[i];
         }
     }
+    if(!construct.command || !args.length){ console.log('type: alkinn --help'); return; }
 }
 
 function processData(){
     var data = [];
     if(construct.command === 'get'){
-        data = get(_.find(cats, {'en': construct.string}).isl)
+        data = get();
     } else if(construct.command === 'find'){
         data = find(construct.string);
     } else if(construct.command === 'open'){
-        iceland();
         printOpeningHours();
         return;
+    } else {
+        return;
     }
+
     if(construct.sort){
         data = sortBy(data);
     }
     print(data);
+
 }
 
 function find(string){
@@ -103,7 +107,7 @@ function find(string){
 function sortBy(obj){
     if(construct.sort == 'drunk'){
         return _.sortBy(obj, function(o){
-            return (o['volume'] * o['perc'] / 100) / o['price'];
+            if(o){ return (o['volume'] * o['perc'] / 100) / o['price']; }
         })
     } else {
         return _.sortBy(obj, construct.sort);
@@ -161,23 +165,22 @@ function validInfo(j){
 }
 
 function printHelp(){
-    let usage = 'usage: alkinn <command> <string> [-sortby] [-h | --help]'
+    let usage = 'usage: alkinn <command> <string | type> [-sortby] [-h | --help]'
     usage += '\n'
-    usage += `\n${chalk.bold('command:')}      GET <type>, FIND <searchstring>`
-    usage += `\n${chalk.bold('string:')}       type or searchstring`
+    usage += `\n${chalk.bold('command:')}      get <type>, find <string>, open (opening hours)`
+    usage += `\n${chalk.bold('string:')}       Search parameter using find`
+    usage += `\n${chalk.bold('types:')}        beer, red, white, strong, cider, desert`
     usage += `\n${chalk.bold('-sortby:')}      name, volume, perc, price, country, category or drunk`
-    usage += `\n${chalk.bold('-h | --help:')}  Show these instructions`
     usage += '\n\n'
-    usage += chalk.italic('Other available commands')
-    usage += `\n${chalk.bold('alkinn commands')}    Display list of all commands`
+    usage += `\n${chalk.bold('-h | --help:')}  Show these instructions`
 
     console.log(usage);
 }
 
 /*Returns beers*/
-function get(type){
-    if(type){
-        return _.filter(res, {category: type});
+function get(){
+    if(construct.string){
+        return _.filter(res, {category: _.find(cats, {'en': construct.string}).isl});
     } else {
         return res;
     }
@@ -201,13 +204,17 @@ function fetchProducts(){
                         }
                         delete tablesAsJson[i][j];
                     } else {
-                        tablesAsJson[i][j] = rename(obj, changeKeys);
-                        tablesAsJson[i][j].country = currCountry;
-                        tablesAsJson[i][j].category = currCategory;
+                        if(currCategory == 'Umbúðir og aðrar söluvörur' && currCategory == 'Annað'){
+                            delete tablesAsJson[i][j];
+                        } else {
+                            tablesAsJson[i][j] = rename(obj, changeKeys);
+                            tablesAsJson[i][j].country = currCountry;
+                            tablesAsJson[i][j].category = currCategory;
 
-                        tablesAsJson[i][j].price = Number(tablesAsJson[i][j].price.slice(0, -4).replace('.', ''));
-                        tablesAsJson[i][j].perc = Number(tablesAsJson[i][j].perc.slice(0, -1));
-                        tablesAsJson[i][j].volume = Number(tablesAsJson[i][j].volume.slice(0, -2));
+                            tablesAsJson[i][j].price = Number(tablesAsJson[i][j].price.slice(0, -4).replace('.', ''));
+                            tablesAsJson[i][j].perc = Number(tablesAsJson[i][j].perc.slice(0, -1));
+                            tablesAsJson[i][j].volume = Number(tablesAsJson[i][j].volume.slice(0, -2));
+                        }
                     }
                 }
             }
@@ -296,6 +303,7 @@ var store = {
 */
 
 function printOpeningHours(){
+    iceland();
     console.log(`                                                   ┌───────────────┐
     ┌──────────────────────────┬───────────────────┤    ALKINN     ├──────────┬──────────┬──────────┐
     │          Title           │   Address         └───────────────┘          │   Open   │  Close   │
@@ -303,12 +311,8 @@ function printOpeningHours(){
     for(i in ope){
         var obj = ope[i];
         var str = '';
-        var red = false;
         str += '    ';
         for(var j in obj){
-            if(obj[i]['closeHour'] < Date.now().getHours()){
-                red = true;
-            }
             var cellSize;
             switch (j) {
                 case 'title':     cellSize = 26; break;
@@ -324,7 +328,7 @@ function printOpeningHours(){
             }
         }
         str += '|';
-        console.log(chalk.styles.red.open + str + chalk.styles.red.close);
+        console.log(str);
         str = '';
     }
     console.log('    └──────────────────────────┴──────────────────────────────────────────────┴──────────┴──────────┘');
@@ -333,51 +337,70 @@ function printOpeningHours(){
 
 
 function iceland(){
+    var openings = {};
+    for(i in ope){
+        var h = new Date().getHours();
+        var title = ope[i]['title'].toLowerCase();
+        title = title.replace(/[á]/g,"a");
+        title = title.replace(/[æ]/g,"ae");
+        title = title.replace(/[í]/g,"i");
+        title = title.replace(/[ú]/g,"u");
+        title = title.replace(/[óö]/g,"o");
+        title = title.replace(/[þ]/g,"t");
+        title = title.replace(/[ð]/g,"d");
+        openings['' + title.split(' ')[0]] = (h >= ope[i].openHour && h < ope[i].closeHour) ? chalk.green('@') : chalk.red('@');
+    }
+    // console.log(openings);
+
+    var ifopen = true;
+    var name = chalk.green('@');
+    // ${name}
+    // (ifopen) ? chalk.green('@') : chalk.red('@')
     console.log(`
-                                                                    ;#'
-                +#@:@@\                                          \@@@@@|
-               .:@@@@@@                                           '@@@@@@     @@@|
-                .'\;@@@;                                          \@@@@@#    @#
-             ,.  #@@#@@@@'                                         @@@@@@+\+@@@
-            #@@@\ @@@@@@@@@                    \,;           @@\ '@@@@@@@@@@@@|
-          \@,@@@@,  +@@@@@@          \+.       @@@@ .@@@+   ,@@@@@@@@@@@@@@@@@\ #
-           @@@@@@@#@ @@@@@@@#.      ,@@@    +@@@@@@' @@@@@  @@@@@@@@@@@@@@@@@@@@@+
-          @''@@@@@@@@;@@@@@@@'      .@@@'  \@@@@@@@';'@@@@@@@@@@@@@@@@@@@@@@@@@@@+
-          +@@@@@@@@@@@@@@@@@@@,      @@@@;  @@@@@@@@@'@@@@@@@@@@@@@@@@@@@@@@@@@@#
-        @@\:@##@@@@@@@@@@@@@@@       +@@@@+ ,@@@@@@@@@\@@@@@@@@@@@@@@@@@@@@@@@@@,.#@
-        :@@@:@@@@@@@@@@@@@@@@+       .@@@@#''@@@@@@@@@+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@;
-     .@#'@@@#@@@@@@@@@@@@@@..     @\ :@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
-    :@@@@@@@@@@@@+@++@@@@@@@@'  \@@.;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-        @@@@#;@   + ',@@@@@@@@  #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
-         :,          .@||@@@@@..@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#
-                       ;@@@@@@'#+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'.
-                     #@@@@@@@@+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@,
-                   ,@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@;;
-                  \#'@@@@.@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#
-                 :: ||   '@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+.@@
-            .\@#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
-       +@@'@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-       ;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
-        @@+    \,'@;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
-                    #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
-                   \@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@:#
-                    +@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-                     @@;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
-                       @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
-                       @@'+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
-                      ,:;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\;,@|
-                        #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@;
-                      \@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
-                 @\   .@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+
-                :@#;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@,
-                .@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
-                ,@@@@@@@#@@@'+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
-                               :@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#'|
-                                 :@@@@@@@@@@@@@@@@@@@@@@@@@:
-                                   @@@@@@@@@@@@@@@@@@@@@@@|
-                                    ;@@@@@@@@@@@@@@@@@@@@;
-                                      \.,;@@@@@@@@@@@@@@'
-                                            :@@@@@@@@;|
-                                                 ,|
+                                                                        ;#'
+                    +#@:@@|                                          |@@@@@|
+                   .:@@@@@@                                           '${openings.kopasker}@@@@@   @@@|
+                    .'|;@@@;                                          |@@@@#    ${openings.torshofn}#
+                 ,.  #@@#@@@@'                                         @@@@@@+|+@@@
+                #@@@| @@@@@@@@@                    |,;           @@| '@@@@@@@@@@@@|
+              |@,@@@${openings.isafjordur},  +@@@@@@          |+.       @${openings.siglufjordur}@@ .@@+   ,${openings.husavik}@@@@@@@@@@@@@@@@| #
+               @@@@@@@#@ @@@@@@@#.      ,@@@    +@@@@@@' @@@@@  @@@@@@@@@@@@@@@@@@@@@+
+              @''@@@@@@@@;@@@@@@@'      .@@@'  |@@@@@@@';'@@@@@@@@@@@@@@@@@@@@@@@@@@@+
+              +@@@@@@@@@@@@@@@@@@@,      @@@@;  @@@@@@@@@'@@@@@@@@@@@@@@@@@@@@@@@@@@#
+            @@|:@##@@@@@@@@@@@@@@${openings.holmavik}       +@@@@+ ,@@@@@@@@${openings.dalvik}|@@@@@@@@@@@@@@@@@@@@@@@${openings.vopnafjordur},.#@
+            :${openings.patreksfjordur}@@:@@@@@@@@@@@@@@@@+       .${openings.blonduos}@@@${openings.saudarkrokur}''@@@@@@@@@+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@;
+         .@#'@@@#@@@@@@@@@@@@@@..     @| :@@@@@@@@@@@@@@@@@${openings.akureyri}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+        :@@@@@@@@@@@@+@++@@@@@@@@'  |@@.;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+            @@@@#;@   + ',@@@@@@@@  #${openings.hvammstangi}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+             :,          .@||@@@@@..@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#
+                           ;@@@@@@'#+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'.
+                         #@@@@@@@@+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@,
+                       ,@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@;;
+                      |#'@@@@.@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@${openings.egilsstadir}@@@${openings.seydisfjordur}@@@#
+                     :: ||   '${openings.budardalur}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+.${openings.neskaupstadur}@
+                .|@#@@${openings.budardalur}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@${openings.reydarfjordur}@@@@@@.
+           +@@'${openings.olafsvik}@@@${openings.stykkisholmur}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@${openings.faskrudsfjordur}@@@
+           ;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
+            @@+    |,'@;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
+                        #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+                       |@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@${openings.djupivogur}#
+                        +@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+                         @${openings.borgarnes};@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
+                           @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
+                           ${openings.akranes}'+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@'
+                          ,:;@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|;,${openings.hofn}|
+                            #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@;
+                           ${openings.skutuvogur}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+                     @|   .${openings.dalvegur}${openings.skeifan}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@+
+                    :${openings.reykjanesbaer}#;@@${openings.alfrun}@@@@@@@@@${openings.hveragerdi}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@,
+                    .@@@@@@@@@@@@@@@@@@${openings.selfoss}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@.
+                    ,@@${openings.grindavik}@@@@#@@@'+${openings.torlakshofn}@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@|
+                                   :@@@@@@@@@@@@@@@@@@@@@@@@@@${openings.kirkjubaejarklaustur}@@@@@#'|
+                                     :@@@@${openings.hella}@@@@@@@@@@@@@@@@@@@@:
+                                       @@@@@${openings.hvolsvollur}@@@@@@@@@@@@@@@@@|
+                                        ;@@@@@@@@@@@@@@@@@@@@;
+                                          |.,;@@@@@@@@@@@@@@'
+                                                :@@${openings.vik}@@@@@;|
+                                            ${openings.vestmannaeyjar}         ,|
     `);
 }
